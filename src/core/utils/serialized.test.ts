@@ -83,7 +83,7 @@ describe('serialized helpers', () => {
       expect(GetSerializedMsgKey(key)).toBe('false_123-456@g.us_AAA_789@c.us');
     });
 
-    it('appends self before participant', () => {
+    it('does not serialize self before participant', () => {
       const key: any = {
         fromMe: true,
         remote: { _serialized: '123@c.us' },
@@ -91,7 +91,17 @@ describe('serialized helpers', () => {
         self: 'out',
         participant: { _serialized: '789@c.us' },
       };
-      expect(GetSerializedMsgKey(key)).toBe('true_123@c.us_AAA_out_789@c.us');
+      expect(GetSerializedMsgKey(key)).toBe('true_123@c.us_AAA_789@c.us');
+    });
+
+    it('does not serialize self when no participant is present', () => {
+      const key: any = {
+        fromMe: true,
+        remote: { _serialized: '123@c.us' },
+        id: 'AAA',
+        self: 'out',
+      };
+      expect(GetSerializedMsgKey(key)).toBe('true_123@c.us_AAA');
     });
 
     it('ignores $1 and reconstructs from keys', () => {

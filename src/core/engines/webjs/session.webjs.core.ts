@@ -2799,14 +2799,17 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
     const replyTo = this.extractReplyTo(message);
     let source = await this.hooks.message.source.promise(message.id.id);
     source = source ?? MessageSource.APP;
-    const key = parseMessageIdSerialized(GetSerialized(message.id));
+    const participantId = (message.id as any).participant;
+    const participant = participantId
+      ? GetSerialized(participantId)
+      : undefined;
     // @ts-ignore
     return {
       id: GetSerialized(message.id),
       timestamp: message.timestamp,
       from: message.from,
       fromMe: message.fromMe,
-      participant: toCusFormat(key.participant),
+      participant: toCusFormat(participant),
       source: source,
       to: message.to,
       body: message.body,

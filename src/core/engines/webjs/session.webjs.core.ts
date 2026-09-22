@@ -1612,7 +1612,13 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
 
   async getContacts(pagination: PaginationParams) {
     const contactsWEBJS = await this.whatsapp.getContacts();
-    const contacts = contactsWEBJS.map(this.toWAContact);
+    const contacts = Array.from(
+      new Map(
+        contactsWEBJS
+          .map(this.toWAContact)
+          .map((contact) => [contact.id, contact]),
+      ).values(),
+    );
     const paginator = new PaginatorInMemory(pagination);
     return paginator.apply(contacts);
   }

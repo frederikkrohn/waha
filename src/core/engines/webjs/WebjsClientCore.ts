@@ -647,7 +647,16 @@ export class WebjsClientCore extends Client {
       const wid = WidFactory.createWidFromWidLike(chatId);
       const chat = d('WAWebChatCollection').ChatCollection.get(wid);
       const tc = chat == null ? void 0 : chat.getTcToken();
-      await d('WAWebContactPresenceBridge').subscribePresence(wid, tc);
+      const bridge = d('WAWebContactPresenceBridge');
+      if (chatId.endsWith('@g.us') && typeof bridge.subscribeGroupPresence === 'function') {
+        await bridge.subscribeGroupPresence(wid);
+      } else if (typeof bridge.subscribeUserPresence === 'function') {
+        await bridge.subscribeUserPresence(wid);
+      } else if (typeof bridge.subscribePresence === 'function') {
+        await bridge.subscribePresence(wid, tc);
+      } else {
+        throw new Error('WAWebContactPresenceBridge has no presence subscription method');
+      }
     }, chatId);
   }
 

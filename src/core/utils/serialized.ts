@@ -56,7 +56,7 @@ export function GetSerializedWid(id: any): string | null {
 }
 
 /**
- * Serializes a MsgKey (message ID): `fromMe_remote_id[_participant]`.
+ * Serializes a MsgKey (message ID): `fromMe_remote_id[_self][_participant]`.
  */
 export function GetSerializedMsgKey(id: any): string | null {
   const hit = cached(id);
@@ -71,6 +71,7 @@ export function GetSerializedMsgKey(id: any): string | null {
       id.participant != null ? GetSerializedWid(id.participant) : null;
     value =
       `${id.fromMe ? 'true' : 'false'}_${remote}_${id.id}` +
+      (id.self ? `_${id.self}` : '') +
       (participant ? `_${participant}` : '');
   } else {
     value = null;

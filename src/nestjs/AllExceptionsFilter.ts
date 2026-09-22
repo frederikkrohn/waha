@@ -29,6 +29,8 @@ export function serializeError(err: unknown) {
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   catch(exception: any | Error, host: ArgumentsHost): void {
+    const normalized =
+      exception instanceof Error ? exception : new Error(String(exception));
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
@@ -39,7 +41,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
      * @issue https://github.com/devlikeapro/waha/issues/134
      * @solution https://github.com/nestjs/serve-static/issues/139#issuecomment-612429557
      */
-    if (exception.code === 'ENOENT') {
+    if ((normalized as NodeJS.ErrnoException).code === 'ENOENT') {
       response.status(HttpStatus.NOT_FOUND).json({
         error: {
           code: 404,
@@ -55,8 +57,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     /**
      * If it's HttpException - pass it as is
      */
-    if (exception instanceof HttpException) {
-      response.status(exception.getStatus()).json(exception.getResponse());
+    if (normalized instanceof HttpException) {
+      response.status(normalized.getStatus()).json(normalized.getResponse());
       return;
     }
 
@@ -68,7 +70,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.status(httpStatus).json({
       statusCode: httpStatus,
       timestamp: new Date().toISOString(),
-      exception: serializeError(exception),
+      exception: serializeError(normalized),
       request: {
         path: request.url,
         method: request.method,

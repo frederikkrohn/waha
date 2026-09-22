@@ -310,11 +310,17 @@ export class WebjsClientCore extends Client {
     await this.ensureWahaInjected();
     const id = await this.pupPage.evaluate(async (name) => {
       const d = require;
-      const action = d('WAWebBizLabelEditingAction');
-      if (typeof action.labelAddAction !== 'function') {
+      const action = d('WAWebListsActions');
+      if (typeof action.createNewListAction !== 'function') {
         throw new Error('list_editing_not_available');
       }
-      return await action.labelAddAction(name, null);
+      const entryPoint = d('WAWebWamEnumUpdateEntryPoint').UPDATE_ENTRY_POINT.LIST_SETTINGS;
+      return await action.createNewListAction({
+        chats: [],
+        color: null,
+        entryPoint,
+        name,
+      });
     }, name);
     const lists = await this.getLists();
     const list = lists.find((item) => item.id === String(id));
@@ -325,19 +331,22 @@ export class WebjsClientCore extends Client {
   }
 
   async renameList(listId: string, name: string): Promise<WhatsAppList> {
-    const list = await this.requireList(listId);
-    await this.pupPage.evaluate(async (listId, name, list) => {
+    await this.requireList(listId);
+    await this.pupPage.evaluate(async (listId, name) => {
       const d = require;
-      const action = d('WAWebBizLabelEditingAction');
-      await action.labelEditAction(
-        listId,
-        name,
-        list.predefinedId ?? 0,
-        list.colorIndex ?? null,
-        list.isActive,
-        list.type,
-      );
-    }, listId, name, list);
+      const label = d('WAWebCollections').Label.get(listId);
+      if (!label || label.type !== 5) {
+        throw new Error('WhatsApp List not found');
+      }
+      const entryPoint = d('WAWebWamEnumUpdateEntryPoint').UPDATE_ENTRY_POINT.LIST_SETTINGS;
+      await d('WAWebListsActions').editListAction({
+        entryPoint,
+        labelModel: label,
+        newColor: label.colorIndex,
+        newName: name,
+        updatedAssociatedChats: d('WAWebListsUtil').getAllChatsInList(label),
+      });
+    }, listId, name);
     const lists = await this.getLists();
     const updated = lists.find((item) => item.id === listId);
     if (!updated) {
@@ -347,15 +356,14 @@ export class WebjsClientCore extends Client {
   }
 
   async deleteList(listId: string): Promise<void> {
-    const list = await this.requireList(listId);
-    await this.pupPage.evaluate(async (list) => {
+    await this.requireList(listId);
+    await this.pupPage.evaluate(async (listId) => {
       const d = require;
-      await d('WAWebBizLabelEditingAction').labelDeleteAction(
-        list.id,
-        list.name,
-        list.colorIndex ?? null,
+      const entryPoint = d('WAWebWamEnumUpdateEntryPoint').UPDATE_ENTRY_POINT.LIST_SETTINGS;
+      await new Promise<void>((resolve) =>
+        d('WAWebListsActions').deleteListAction(listId, resolve, entryPoint),
       );
-    }, list);
+    }, listId);
   }
 
   async getListChats(listId: string): Promise<any[]> {
@@ -376,16 +384,28 @@ export class WebjsClientCore extends Client {
       if (!label || label.type !== 5) {
         throw new Error('WhatsApp List not found');
       }
-      const widFactory = d('WAWebWidFactory');
-      const chats = chatIds.map((chatId) =>
-        d('WAWebCollections').Chat.get(
-          widFactory.createWidFromWidLike(chatId),
-        ),
+      const chats = await Promise.all(
+        chatIds.map((chatId) => (window as any).WWebJS.getChat(chatId, { getAsModel: false })),
       );
       if (chats.some((chat) => !chat)) {
         throw new Error('One or more list chat IDs could not be resolved');
       }
-      await labelCollection.addOrRemoveLabels([{ id: listId, type: operation }], chats);
+      const listsUtil = d('WAWebListsUtil');
+      const currentChats = listsUtil.getAllChatsInList(label);
+      const targetIds = new Set(chatIds);
+      const chatKey = (chat) => (window as any).WWebJS.GetSerialized(chat.id) ?? String(chat.id);
+      const updatedAssociatedChats =
+        operation === 'add'
+          ? Array.from(new Map([...currentChats, ...chats].map((chat) => [chatKey(chat), chat])).values())
+          : currentChats.filter((chat) => !targetIds.has(chatKey(chat)));
+      const entryPoint = d('WAWebWamEnumUpdateEntryPoint').UPDATE_ENTRY_POINT.LIST_SETTINGS;
+      await d('WAWebListsActions').editListAction({
+        entryPoint,
+        labelModel: label,
+        newColor: label.colorIndex,
+        newName: label.name,
+        updatedAssociatedChats,
+      });
     }, listId, chatIds, operation);
   }
 

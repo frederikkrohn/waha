@@ -293,7 +293,9 @@ export class WebjsClientCore extends Client {
     await this.ensureWahaInjected();
     return await this.pupPage.evaluate(async () => {
       const d = require;
-      const labels = d('WAWebLabelStore').LabelStore.getModelsArray();
+      // Since the 2026 WhatsApp Web bundle, the label collection is exposed
+      // through WAWebCollections.  WAWebLabelStore is no longer a module.
+      const labels = d('WAWebCollections').Label.getModelsArray();
       return labels
         .filter((label) => label.type === 5)
         .map((label) => ({
@@ -317,7 +319,7 @@ export class WebjsClientCore extends Client {
     const lists = await this.getLists();
     const list = lists.find((item) => item.id === String(id));
     if (!list) {
-      throw new Error('List was created but is not available in the label store');
+      throw new Error('List was created but is not available in the label collection');
     }
     return list;
   }
@@ -339,7 +341,7 @@ export class WebjsClientCore extends Client {
     const lists = await this.getLists();
     const updated = lists.find((item) => item.id === listId);
     if (!updated) {
-      throw new Error('List was renamed but is not available in the label store');
+      throw new Error('List was renamed but is not available in the label collection');
     }
     return updated;
   }
@@ -369,21 +371,21 @@ export class WebjsClientCore extends Client {
     await this.requireList(listId);
     await this.pupPage.evaluate(async (listId, chatIds, operation) => {
       const d = require;
-      const labelStore = d('WAWebLabelStore').LabelStore;
-      const label = labelStore.get(listId);
+      const labelCollection = d('WAWebCollections').Label;
+      const label = labelCollection.get(listId);
       if (!label || label.type !== 5) {
         throw new Error('WhatsApp List not found');
       }
       const widFactory = d('WAWebWidFactory');
       const chats = chatIds.map((chatId) =>
-        d('WAWebChatCollection').ChatCollection.get(
+        d('WAWebCollections').Chat.get(
           widFactory.createWidFromWidLike(chatId),
         ),
       );
       if (chats.some((chat) => !chat)) {
         throw new Error('One or more list chat IDs could not be resolved');
       }
-      await labelStore.addOrRemoveLabels([{ id: listId, type: operation }], chats);
+      await labelCollection.addOrRemoveLabels([{ id: listId, type: operation }], chats);
     }, listId, chatIds, operation);
   }
 
@@ -391,7 +393,7 @@ export class WebjsClientCore extends Client {
     await this.ensureWahaInjected();
     const list = await this.pupPage.evaluate(async (listId) => {
       const d = require;
-      const label = d('WAWebLabelStore').LabelStore.get(listId);
+      const label = d('WAWebCollections').Label.get(listId);
       if (!label || label.type !== 5) {
         return null;
       }

@@ -639,56 +639,78 @@ export class WebjsClientCore extends Client {
   /**
    * Presences methods
    */
+  private async getPresenceKey(chatId: string): Promise<string> {
+    return await this.pupPage.evaluate((chatId) => {
+      const d = require;
+      const wid = d('WAWebWidFactory').createWidFromWidLike(chatId);
+      if (wid.isGroup() || wid.isLid()) {
+        return chatId;
+      }
+      const lid = d('WAWebApiContact').getCurrentLid(wid);
+      if (!lid) {
+        return chatId;
+      }
+      // @ts-ignore
+      return window.WWebJS.GetSerialized(lid);
+    }, chatId);
+  }
+
   public async subscribePresence(chatId: string): Promise<void> {
-    await this.pupPage.evaluate(async (chatId) => {
+    const key = await this.getPresenceKey(chatId);
+    await this.pupPage.evaluate(async (key) => {
       const d = require;
       const WidFactory = d('WAWebWidFactory');
+      const wid = WidFactory.createWidFromWidLike(key);
+      const collection = d('WAWebPresenceCollection').PresenceCollection;
+      if (typeof collection.find === 'function') {
+        await collection.find(wid);
+        return;
+      }
 
-      const wid = WidFactory.createWidFromWidLike(chatId);
+      const bridge = d('WAWebContactPresenceBridge');
       const chat = d('WAWebChatCollection').ChatCollection.get(wid);
       const tc = chat == null ? void 0 : chat.getTcToken();
-      const bridge = d('WAWebContactPresenceBridge');
-      // WhatsApp Web has renamed these methods across releases. Without this
-      // fallback, presence requests fail in production after a WEBJS update.
-      if (chatId.endsWith('@g.us') && typeof bridge.subscribeGroupPresence === 'function') {
+      if (wid.isGroup() && typeof bridge.subscribeGroupPresence === 'function') {
         await bridge.subscribeGroupPresence(wid);
       } else if (typeof bridge.subscribeUserPresence === 'function') {
         await bridge.subscribeUserPresence(wid);
       } else if (typeof bridge.subscribePresence === 'function') {
         await bridge.subscribePresence(wid, tc);
       } else {
-        throw new Error('WAWebContactPresenceBridge has no presence subscription method');
+        throw new Error('WAWeb presence subscription API is unavailable');
       }
-    }, chatId);
+    }, key);
   }
 
   private async getCurrentPresence(chatId: string): Promise<WebJSPresence[]> {
-    const result = await this.pupPage.evaluate(async (chatId) => {
+    const key = await this.getPresenceKey(chatId);
+    const result = await this.pupPage.evaluate(async (chatId, key) => {
       const d = require;
       const WidFactory = d('WAWebWidFactory');
       const PresenceCollection = d(
         'WAWebPresenceCollection',
       ).PresenceCollection;
-      const wid = WidFactory.createWidFromWidLike(chatId);
+      const wid = WidFactory.createWidFromWidLike(key);
       const presence = PresenceCollection.get(wid);
       if (!presence) {
         return [];
       }
-      let chatstates = [];
-      if (chatId.endsWith('@c.us')) {
-        chatstates = [presence.chatstate];
-      } else {
-        chatstates = presence.chatstates.getModelsArray();
+      if (wid.isGroup()) {
+        return presence.chatstates.getModelsArray().map((chatstate) => {
+          return {
+            // @ts-ignore
+            participant: window.WWebJS.GetSerialized(chatstate.id),
+            lastSeen: chatstate.t,
+            state: chatstate.type,
+          };
+        });
       }
-      return chatstates.map((chatstate) => {
-        return {
-          // @ts-ignore
-          participant: window.WWebJS.GetSerialized(chatstate.id),
-          lastSeen: chatstate.t,
-          state: chatstate.type,
-        };
-      });
-    }, chatId);
+      return [{
+        participant: chatId,
+        lastSeen: presence.chatstate.t,
+        state: presence.chatstate.type,
+      }];
+    }, chatId, key);
     return result;
   }
 

@@ -2202,30 +2202,14 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
 
   @Activity()
   public async getPresence(id: string): Promise<WAHAChatPresences> {
-    // WEBJS does not reliably accept a routing @lid here. Resolve it to the
-    // phone-number JID first, otherwise self/LID chats return no presence.
-    let chatId = toCusFormat(id);
-    if (isLidUser(chatId)) {
-      const pn = await this.whatsapp.findPNByLid(chatId);
-      if (pn) {
-        chatId = toCusFormat(pn);
-      }
-    }
+    const chatId = toCusFormat(id);
     const presences = await this.whatsapp.getPresence(chatId);
     return this.toWahaPresences(chatId, presences);
   }
 
   @Activity()
   public async subscribePresence(id: string): Promise<any> {
-    // The subscription API has the same LID limitation as getPresence:
-    // subscribing with @lid silently misses updates for the actual chat.
-    let chatId = toCusFormat(id);
-    if (isLidUser(chatId)) {
-      const pn = await this.whatsapp.findPNByLid(chatId);
-      if (pn) {
-        chatId = toCusFormat(pn);
-      }
-    }
+    const chatId = toCusFormat(id);
     await this.whatsapp.subscribePresence(chatId);
   }
 

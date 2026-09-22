@@ -376,7 +376,18 @@ export class WebjsClientCore extends Client {
         .filter((item) => item.parentType === 'Chat')
         .map((item) => (window as any).WWebJS.GetSerialized(item.parentId))
         .filter(Boolean);
-      return await Promise.all(ids.map((id) => (window as any).WWebJS.getChat(id)));
+      return await Promise.all(
+        ids.map(async (id) => {
+          const chat = await (window as any).WWebJS.getChat(id);
+          // getChatModel keeps the underlying WID object in `id`.  The REST
+          // boundary must expose the serialized chat id, as the other chat
+          // endpoints do, rather than leaking a WhatsApp Web implementation
+          // object to MCP consumers.
+          return chat
+            ? { ...chat, id: (window as any).WWebJS.GetSerialized(chat.id) }
+            : null;
+        }),
+      );
     }, listId);
     return chats.filter(Boolean).map((chat) => ChatFactory.create(this, chat));
   }

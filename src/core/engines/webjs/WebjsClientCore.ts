@@ -368,7 +368,17 @@ export class WebjsClientCore extends Client {
 
   async getListChats(listId: string): Promise<any[]> {
     await this.requireList(listId);
-    return await this.getChatsByLabelId(listId);
+    const chats = await this.pupPage.evaluate(async (listId) => {
+      const label = window.require('WAWebCollections').Label.get(listId);
+      if (!label) return [];
+      const ids = label.labelItemCollection
+        .getModelsArray()
+        .filter((item) => item.parentType === 'Chat')
+        .map((item) => (window as any).WWebJS.GetSerialized(item.parentId))
+        .filter(Boolean);
+      return await Promise.all(ids.map((id) => (window as any).WWebJS.getChat(id)));
+    }, listId);
+    return chats.filter(Boolean).map((chat) => ChatFactory.create(this, chat));
   }
 
   async mutateListChats(

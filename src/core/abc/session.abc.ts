@@ -142,6 +142,11 @@ import {
   AvailableInPlusVersion,
   NotImplementedByEngineError,
 } from '../exceptions';
+import {
+  CreateWhatsAppListBody,
+  RenameWhatsAppListBody,
+  WhatsAppList,
+} from '../../structures/lists.dto';
 import { IMediaManager, MediaDownloadOptions } from '../media/IMediaManager';
 import { QR } from '../QR';
 import { DataStore } from './DataStore';
@@ -860,6 +865,30 @@ export abstract class WhatsappSession {
   }
 
   public putLabelsToChat(chatId: string, labels: LabelID[]) {
+    throw new NotImplementedByEngineError();
+  }
+
+  public getLists(): Promise<WhatsAppList[]> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public createList(body: CreateWhatsAppListBody): Promise<WhatsAppList> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public renameList(listId: string, body: RenameWhatsAppListBody): Promise<WhatsAppList> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public deleteList(listId: string): Promise<void> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public getListChats(listId: string): Promise<any[]> {
+    throw new NotImplementedByEngineError();
+  }
+
+  public mutateListChats(listId: string, chatIds: string[], operation: 'add' | 'remove'): Promise<void> {
     throw new NotImplementedByEngineError();
   }
 

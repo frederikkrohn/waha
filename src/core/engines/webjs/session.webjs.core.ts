@@ -104,6 +104,11 @@ import {
   ContactUpdateBody,
 } from '@waha/structures/contacts.dto';
 import {
+  CreateWhatsAppListBody,
+  RenameWhatsAppListBody,
+  WhatsAppList,
+} from '@waha/structures/lists.dto';
+import {
   ACK_UNKNOWN,
   SECOND,
   WAHAEngine,
@@ -1576,6 +1581,45 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
     const id = await this.hooks.wid.chat.promise(chatId, 'putLabelsToChat');
     const chatIds = [id];
     await this.whatsapp.addOrRemoveLabels(labelIds, chatIds);
+  }
+
+  public getLists(): Promise<WhatsAppList[]> {
+    return this.whatsapp.getLists();
+  }
+
+  @Activity()
+  public async createList(body: CreateWhatsAppListBody): Promise<WhatsAppList> {
+    const list = await this.whatsapp.createList(body.name);
+    if (body.chatIds?.length) {
+      await this.mutateListChats(list.id, body.chatIds, 'add');
+    }
+    return list;
+  }
+
+  @Activity()
+  public renameList(listId: string, body: RenameWhatsAppListBody): Promise<WhatsAppList> {
+    return this.whatsapp.renameList(listId, body.name);
+  }
+
+  @Activity()
+  public deleteList(listId: string): Promise<void> {
+    return this.whatsapp.deleteList(listId);
+  }
+
+  public getListChats(listId: string): Promise<any[]> {
+    return this.whatsapp.getListChats(listId);
+  }
+
+  @Activity()
+  public async mutateListChats(
+    listId: string,
+    chatIds: string[],
+    operation: 'add' | 'remove',
+  ): Promise<void> {
+    const resolvedChatIds = await Promise.all(
+      chatIds.map((chatId) => this.hooks.wid.chat.promise(chatId, 'mutateListChats')),
+    );
+    await this.whatsapp.mutateListChats(listId, resolvedChatIds, operation);
   }
 
   protected toLabel(label: WEBJSLabel): Label {

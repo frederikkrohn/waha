@@ -3,6 +3,7 @@ import { GetSerialized } from '@waha/core/utils/serialized';
 import { GetChatMessagesFilter } from '@waha/structures/chats.dto';
 import { Label } from '@waha/structures/labels.dto';
 import { LidToPhoneNumber } from '@waha/structures/lids.dto';
+import { WhatsAppList } from '@waha/structures/lists.dto';
 import { PaginationParams } from '@waha/structures/pagination.dto';
 import { TextStatus } from '@waha/structures/status.dto';
 import { sleep } from '@waha/utils/promiseTimeout';
@@ -286,6 +287,127 @@ export class WebjsClientCore extends Client {
         label.color,
       );
     }, label);
+  }
+
+  async getLists(): Promise<WhatsAppList[]> {
+    await this.ensureWahaInjected();
+    return await this.pupPage.evaluate(async () => {
+      const d = require;
+      const labels = d('WAWebLabelStore').LabelStore.getModelsArray();
+      return labels
+        .filter((label) => label.type === 5)
+        .map((label) => ({
+          id: String(label.id),
+          name: label.name,
+          chatCount: label.chatCount,
+        }));
+    });
+  }
+
+  async createList(name: string): Promise<WhatsAppList> {
+    await this.ensureWahaInjected();
+    const id = await this.pupPage.evaluate(async (name) => {
+      const d = require;
+      const action = d('WAWebBizLabelEditingAction');
+      if (typeof action.labelAddAction !== 'function') {
+        throw new Error('list_editing_not_available');
+      }
+      return await action.labelAddAction(name, null);
+    }, name);
+    const lists = await this.getLists();
+    const list = lists.find((item) => item.id === String(id));
+    if (!list) {
+      throw new Error('List was created but is not available in the label store');
+    }
+    return list;
+  }
+
+  async renameList(listId: string, name: string): Promise<WhatsAppList> {
+    const list = await this.requireList(listId);
+    await this.pupPage.evaluate(async (listId, name, list) => {
+      const d = require;
+      const action = d('WAWebBizLabelEditingAction');
+      await action.labelEditAction(
+        listId,
+        name,
+        list.predefinedId ?? 0,
+        list.colorIndex ?? null,
+        list.isActive,
+        list.type,
+      );
+    }, listId, name, list);
+    const lists = await this.getLists();
+    const updated = lists.find((item) => item.id === listId);
+    if (!updated) {
+      throw new Error('List was renamed but is not available in the label store');
+    }
+    return updated;
+  }
+
+  async deleteList(listId: string): Promise<void> {
+    const list = await this.requireList(listId);
+    await this.pupPage.evaluate(async (list) => {
+      const d = require;
+      await d('WAWebBizLabelEditingAction').labelDeleteAction(
+        list.id,
+        list.name,
+        list.colorIndex ?? null,
+      );
+    }, list);
+  }
+
+  async getListChats(listId: string): Promise<any[]> {
+    await this.requireList(listId);
+    return await this.getChatsByLabelId(listId);
+  }
+
+  async mutateListChats(
+    listId: string,
+    chatIds: string[],
+    operation: 'add' | 'remove',
+  ): Promise<void> {
+    await this.requireList(listId);
+    await this.pupPage.evaluate(async (listId, chatIds, operation) => {
+      const d = require;
+      const labelStore = d('WAWebLabelStore').LabelStore;
+      const label = labelStore.get(listId);
+      if (!label || label.type !== 5) {
+        throw new Error('WhatsApp List not found');
+      }
+      const widFactory = d('WAWebWidFactory');
+      const chats = chatIds.map((chatId) =>
+        d('WAWebChatCollection').ChatCollection.get(
+          widFactory.createWidFromWidLike(chatId),
+        ),
+      );
+      if (chats.some((chat) => !chat)) {
+        throw new Error('One or more list chat IDs could not be resolved');
+      }
+      await labelStore.addOrRemoveLabels([{ id: listId, type: operation }], chats);
+    }, listId, chatIds, operation);
+  }
+
+  private async requireList(listId: string): Promise<any> {
+    await this.ensureWahaInjected();
+    const list = await this.pupPage.evaluate(async (listId) => {
+      const d = require;
+      const label = d('WAWebLabelStore').LabelStore.get(listId);
+      if (!label || label.type !== 5) {
+        return null;
+      }
+      return {
+        id: String(label.id),
+        name: label.name,
+        predefinedId: label.predefinedId,
+        colorIndex: label.colorIndex,
+        isActive: label.isActive,
+        type: label.type,
+      };
+    }, listId);
+    if (!list) {
+      throw new Error('WhatsApp List not found');
+    }
+    return list;
   }
 
   async getChats(pagination?: PaginationParams, filter?: { ids?: string[] }) {

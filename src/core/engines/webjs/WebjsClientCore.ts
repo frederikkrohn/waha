@@ -648,6 +648,8 @@ export class WebjsClientCore extends Client {
       const chat = d('WAWebChatCollection').ChatCollection.get(wid);
       const tc = chat == null ? void 0 : chat.getTcToken();
       const bridge = d('WAWebContactPresenceBridge');
+      // WhatsApp Web has renamed these methods across releases. Without this
+      // fallback, presence requests fail in production after a WEBJS update.
       if (chatId.endsWith('@g.us') && typeof bridge.subscribeGroupPresence === 'function') {
         await bridge.subscribeGroupPresence(wid);
       } else if (typeof bridge.subscribeUserPresence === 'function') {

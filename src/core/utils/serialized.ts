@@ -69,6 +69,9 @@ export function GetSerializedMsgKey(id: any): string | null {
     const remote = GetSerializedWid(id.remote);
     const participant =
       id.participant != null ? GetSerializedWid(id.participant) : null;
+    // Self-chat IDs commonly contain `_out`; keep that segment because WAHA
+    // passes the native ID back to WEBJS for lookup, edit, reaction, and pin
+    // operations. Dropping it makes those actions target the wrong message.
     value =
       `${id.fromMe ? 'true' : 'false'}_${remote}_${id.id}` +
       (id.self ? `_${id.self}` : '') +

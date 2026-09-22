@@ -2202,6 +2202,8 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
 
   @Activity()
   public async getPresence(id: string): Promise<WAHAChatPresences> {
+    // WEBJS does not reliably accept a routing @lid here. Resolve it to the
+    // phone-number JID first, otherwise self/LID chats return no presence.
     let chatId = toCusFormat(id);
     if (isLidUser(chatId)) {
       const pn = await this.whatsapp.findPNByLid(chatId);
@@ -2215,6 +2217,8 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
 
   @Activity()
   public async subscribePresence(id: string): Promise<any> {
+    // The subscription API has the same LID limitation as getPresence:
+    // subscribing with @lid silently misses updates for the actual chat.
     let chatId = toCusFormat(id);
     if (isLidUser(chatId)) {
       const pn = await this.whatsapp.findPNByLid(chatId);
@@ -2811,6 +2815,9 @@ export class WhatsappSessionWebJSCore extends WhatsappSession {
     const replyTo = this.extractReplyTo(message);
     let source = await this.hooks.message.source.promise(message.id.id);
     source = source ?? MessageSource.APP;
+    // Native WEBJS IDs may contain `_out` (notably for self-chat messages).
+    // Parsing the ID as WAHA's underscore format misreads that segment as a
+    // participant and can turn an otherwise valid message into a 500 response.
     const participantId = (message.id as any).participant;
     const participant = participantId
       ? GetSerialized(participantId)
